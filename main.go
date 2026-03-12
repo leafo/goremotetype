@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sort"
 	"strings"
@@ -20,12 +19,13 @@ func main() {
 	listenAddr := flag.String("listen", "0.0.0.0:8088", "listen address")
 	flag.Parse()
 
-	if _, err := exec.LookPath("xdotool"); err != nil {
-		log.Fatal("xdotool not found in PATH. Install it with: sudo pacman -S xdotool")
+	if err := InitX11(); err != nil {
+		log.Fatalf("X11 init failed: %v", err)
 	}
+	defer CloseX11()
 
-	typeCh := StartTyper()
-	server := NewServer(typeCh)
+	typer := NewTyper()
+	server := NewServer(typer)
 	httpServer := &http.Server{
 		Addr:              *listenAddr,
 		Handler:           server.Routes(),

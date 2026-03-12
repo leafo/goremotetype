@@ -10,14 +10,14 @@ import (
 
 type Server struct {
 	hub      *Hub
-	typeCh   chan<- TypeCommand
+	typer    *Typer
 	upgrader websocket.Upgrader
 }
 
-func NewServer(typeCh chan<- TypeCommand) *Server {
+func NewServer(typer *Typer) *Server {
 	return &Server{
-		hub:    NewHub(),
-		typeCh: typeCh,
+		hub:   NewHub(),
+		typer: typer,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(_ *http.Request) bool {
 				return true
@@ -95,14 +95,18 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		switch msg.Type {
 		case "text":
 			if msg.Data != "" {
-				s.typeCh <- TypeCommand{Text: msg.Data}
+				s.typer.SendText(msg.Data)
 			}
 		case "key":
 			if msg.Key != "" {
-				s.typeCh <- TypeCommand{Key: msg.Key}
+				s.typer.SendKey(msg.Key)
 			}
+		case "compositionupdate":
+			s.typer.SetComposition(msg.Data)
+		case "compositionend":
+			s.typer.EndComposition()
 		case "clear":
-			// no-op on server
+			s.typer.Clear()
 		}
 	}
 

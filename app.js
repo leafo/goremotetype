@@ -14,8 +14,6 @@
   var autoScroll = true;
   var entryCount = 0;
   var MAX_ENTRIES = 500;
-  var MAX_BACKSPACES = 200;
-
   // Delta tracking
   var lastSentLength = 0;
   var isComposing = false;
@@ -106,6 +104,7 @@
 
   // --- Delta tracking ---
 
+  // Sends committed (non-composing) text changes
   function syncDelta() {
     var val = ta.value;
     if (val.length > lastSentLength) {
@@ -114,7 +113,7 @@
       logEvent('ws:send', 'text: "' + truncate(newText, 60) + '"', true);
       lastSentLength = val.length;
     } else if (val.length < lastSentLength) {
-      var deleteCount = Math.min(lastSentLength - val.length, MAX_BACKSPACES);
+      var deleteCount = lastSentLength - val.length;
       for (var i = 0; i < deleteCount; i++) {
         wsSend({type: 'key', key: 'Backspace'});
       }
@@ -136,13 +135,20 @@
   });
 
   ta.addEventListener('compositionupdate', function(e) {
-    logEvent('compositionupdate', 'data="' + (e.data || '') + '"');
+    var data = e.data || '';
+    logEvent('compositionupdate', 'data="' + data + '"');
+    wsSend({type: 'compositionupdate', data: data});
+    logEvent('ws:send', 'comp: "' + truncate(data, 60) + '"', true);
   });
 
   ta.addEventListener('compositionend', function(e) {
     isComposing = false;
-    logEvent('compositionend', 'data="' + (e.data || '') + '"');
-    syncDelta();
+    var data = e.data || '';
+    logEvent('compositionend', 'data="' + data + '"');
+    wsSend({type: 'compositionend', data: data});
+    // Update lastSentLength to account for the committed composition text
+    lastSentLength = ta.value.length;
+    logEvent('ws:send', 'compend: "' + truncate(data, 60) + '"', true);
   });
 
   ta.addEventListener('beforeinput', function(e) {
