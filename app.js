@@ -6,6 +6,7 @@
   var eventCountEl = document.getElementById('eventCount');
   var filtersEl = document.getElementById('filters');
   var clearBtn = document.getElementById('clearBtn');
+  var shipLogBtn = document.getElementById('shipLogBtn');
   var clearLogBtn = document.getElementById('clearLogBtn');
 
   var ws = null;
@@ -14,6 +15,7 @@
   var autoScroll = true;
   var entryCount = 0;
   var MAX_ENTRIES = 500;
+  var logBuffer = [];
   // Delta tracking
   var lastSentLength = 0;
   var isComposing = false;
@@ -241,8 +243,15 @@
 
   clearLogBtn.addEventListener('click', function() {
     logEl.innerHTML = '';
+    logBuffer = [];
     entryCount = 0;
     eventCountEl.textContent = '0';
+  });
+
+  shipLogBtn.addEventListener('click', function() {
+    var payload = logBuffer.join('\n');
+    wsSend({type: 'debuglog', data: payload});
+    logEvent('ws:send', 'debuglog (' + logBuffer.length + ' entries)', true);
   });
 
   // --- Event log ---
@@ -255,6 +264,19 @@
   function logEvent(type, detail, isSent) {
     var group = groupForEvent[type] || 'Other';
     if (!isSent && !enabledGroups[group]) return;
+
+    var snapshot = [
+      'value="' + ta.value + '"',
+      'sel=' + ta.selectionStart + '-' + ta.selectionEnd,
+      'lastSent=' + lastSentLength,
+      isComposing ? 'composing' : 'steady',
+      pendingCompositionCommit ? 'pendingCommit' : 'noPendingCommit'
+    ].join(' | ');
+    var exportLine = new Date().toISOString() + ' | ' + type + ' | ' + detail + ' | ' + snapshot;
+    logBuffer.push(exportLine);
+    if (logBuffer.length > MAX_ENTRIES) {
+      logBuffer.shift();
+    }
 
     entryCount++;
     eventCountEl.textContent = String(entryCount);

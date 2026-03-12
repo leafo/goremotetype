@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -107,6 +108,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.typer.CommitComposition(msg.Data)
 		case "clear":
 			s.typer.Clear()
+		case "debuglog":
+			log.Printf("frontend debug log begin: %s", conn.RemoteAddr())
+			fmt.Println(msg.Data)
+			log.Printf("frontend debug log end: %s", conn.RemoteAddr())
 		}
 	}
 
