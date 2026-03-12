@@ -148,6 +148,11 @@
   // --- Event listeners ---
 
   ta.addEventListener('compositionstart', function(e) {
+    // Some IMEs end one composition segment and immediately start the next.
+    // Commit the finished segment before beginning the new live preview.
+    if (pendingCompositionCommit) {
+      flushCompositionCommit();
+    }
     isComposing = true;
     pendingCompositionCommit = false;
     logEvent('compositionstart', 'data="' + (e.data || '') + '"');
