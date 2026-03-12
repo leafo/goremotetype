@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,13 +13,15 @@ import (
 type Server struct {
 	hub      *Hub
 	typer    *Typer
+	password string
 	upgrader websocket.Upgrader
 }
 
-func NewServer(typer *Typer) *Server {
+func NewServer(typer *Typer, password string) *Server {
 	return &Server{
-		hub:   NewHub(),
-		typer: typer,
+		hub:      NewHub(),
+		typer:    typer,
+		password: password,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(_ *http.Request) bool {
 				return true
@@ -34,7 +37,23 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/assets/favicon.svg", s.handleFaviconSVG)
 	mux.HandleFunc("/assets/styles.css", s.handleStylesCSS)
 	mux.HandleFunc("/ws", s.handleWS)
-	return mux
+	return s.requireBasicAuth(mux)
+}
+
+func (s *Server) requireBasicAuth(next http.Handler) http.Handler {
+	if s.password == "" {
+		return next
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, password, ok := r.BasicAuth()
+		if !ok || subtle.ConstantTimeCompare([]byte(password), []byte(s.password)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="goremotetype"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {

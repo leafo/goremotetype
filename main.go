@@ -19,6 +19,7 @@ func main() {
 	listenAddr := flag.String("listen", "0.0.0.0:8088", "listen address")
 	trayEnabled := flag.Bool("tray", true, "show a system tray icon")
 	keyDelayMs := flag.Int("key-delay-ms", 0, "delay in milliseconds between injected X11 key presses")
+	password := flag.String("password", "", "protect all HTTP and websocket endpoints with HTTP Basic Auth")
 	flag.Parse()
 
 	if err := InitX11(); err != nil {
@@ -31,7 +32,7 @@ func main() {
 	}
 
 	typer := NewTyper()
-	server := NewServer(typer)
+	server := NewServer(typer, *password)
 	httpServer := &http.Server{
 		Addr:              *listenAddr,
 		Handler:           server.Routes(),

@@ -39,6 +39,7 @@ goremotetype LAN URL: http://192.168.1.100:8088
 ```
 -listen  listen address (default "0.0.0.0:8088")
 -key-delay-ms  delay in milliseconds between injected X11 key presses
+-password  protect all HTTP and websocket endpoints with HTTP Basic Auth
 -tray    show a system tray icon; disable with -tray=false
 ```
 
@@ -48,3 +49,11 @@ delay such as:
 ```
 ./goremotetype -key-delay-ms=2
 ```
+
+To require a password before the page, assets, or websocket can be accessed:
+
+```
+./goremotetype -password='your-secret'
+```
+
+The password is checked with HTTP Basic Auth. The username can be anything.
