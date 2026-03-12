@@ -120,7 +120,7 @@ func lanIPs(host string) []string {
 }
 
 func usageText() string {
-	return `goremotetype relays phone typing to your X11 desktop via xdotool.`
+	return `goremotetype relays phone typing to your X11 desktop via XTEST.`
 }
 
 func init() {

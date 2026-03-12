@@ -121,6 +121,7 @@ import "C"
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"unicode/utf8"
 	"unsafe"
 )
@@ -129,6 +130,13 @@ var (
 	typeTextFn       = typeText
 	sendKeyFn        = sendKey
 	sendBackspacesFn = sendBackspaces
+)
+
+const (
+	ansiReset   = "\033[0m"
+	ansiGreen   = "\033[32m"
+	ansiBlue    = "\033[34m"
+	ansiMagenta = "\033[35m"
 )
 
 type Typer struct {
@@ -255,11 +263,24 @@ func runeToKeysym(r rune) C.ulong {
 	return C.ulong(r)
 }
 
+func logX11Action(color, action, detail string) {
+	log.Printf("%s[x11] %-10s%s %s", color, action, ansiReset, detail)
+}
+
+func summarizeTextForLog(text string, maxRunes int) string {
+	runes := []rune(text)
+	if len(runes) > maxRunes {
+		return strconv.Quote(string(runes[:maxRunes]) + "...")
+	}
+	return strconv.Quote(text)
+}
+
 func typeText(text string) {
 	runes := []rune(text)
 	if len(runes) == 0 {
 		return
 	}
+	logX11Action(ansiGreen, "type", fmt.Sprintf("runes=%d text=%s", len(runes), summarizeTextForLog(text, 80)))
 	keysyms := make([]C.ulong, len(runes))
 	for i, r := range runes {
 		keysyms[i] = runeToKeysym(r)
@@ -271,6 +292,7 @@ func sendBackspaces(count int) {
 	if count <= 0 {
 		return
 	}
+	logX11Action(ansiMagenta, "backspace", fmt.Sprintf("count=%d", count))
 	C.x11_send_backspaces(C.int(count))
 }
 
@@ -294,5 +316,6 @@ func sendKey(key string) {
 		log.Printf("unknown key: %s", key)
 		return
 	}
+	logX11Action(ansiBlue, "key", fmt.Sprintf("key=%s", strconv.Quote(key)))
 	C.x11_send_keysym(ks)
 }
