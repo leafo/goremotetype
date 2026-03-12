@@ -140,14 +140,18 @@ const (
 )
 
 type Typer struct {
-	cmdCh       chan TypeCommand
-	compCurrent string
+	cmdCh             chan TypeCommand
+	enabled           bool
+	compCurrent       string
+	compositionActive bool
+	tray              *Tray
 }
 
 type TypeCommand struct {
-	Kind TypeCommandKind
-	Text string
-	Key  string
+	Kind    TypeCommandKind
+	Text    string
+	Key     string
+	Enabled bool
 }
 
 type TypeCommandKind int
@@ -158,14 +162,22 @@ const (
 	CommandCompositionUpdate
 	CommandCompositionCommit
 	CommandClear
+	CommandSetEnabled
 )
 
 func NewTyper() *Typer {
 	t := &Typer{
-		cmdCh: make(chan TypeCommand, 64),
+		cmdCh:   make(chan TypeCommand, 64),
+		enabled: true,
 	}
 	go t.loop()
 	return t
+}
+
+func (t *Typer) SetTray(tray *Tray) {
+	t.tray = tray
+	t.updateEnabledState(t.enabled)
+	t.updateCompositionState(t.compCurrent != "")
 }
 
 func InitX11() error {
@@ -204,6 +216,10 @@ func (t *Typer) Clear() {
 	t.cmdCh <- TypeCommand{Kind: CommandClear}
 }
 
+func (t *Typer) SetEnabled(enabled bool) {
+	t.cmdCh <- TypeCommand{Kind: CommandSetEnabled, Enabled: enabled}
+}
+
 func (t *Typer) loop() {
 	for {
 		cmd := <-t.cmdCh
@@ -226,22 +242,59 @@ func (t *Typer) replaceComposition(text string) {
 	}
 
 	t.compCurrent = text
+	t.updateCompositionState(text != "")
 }
 
 func (t *Typer) execCommand(cmd TypeCommand) {
 	switch cmd.Kind {
+	case CommandSetEnabled:
+		t.enabled = cmd.Enabled
+		if !t.enabled {
+			t.compCurrent = ""
+			t.updateCompositionState(false)
+		}
+		t.updateEnabledState(t.enabled)
 	case CommandText:
+		if !t.enabled {
+			return
+		}
 		typeTextFn(cmd.Text)
 	case CommandKey:
+		if !t.enabled {
+			return
+		}
 		sendKeyFn(cmd.Key)
 	case CommandCompositionUpdate:
+		if !t.enabled {
+			return
+		}
 		t.replaceComposition(cmd.Text)
 	case CommandCompositionCommit:
+		if !t.enabled {
+			return
+		}
 		t.replaceComposition(cmd.Text)
 		t.compCurrent = ""
+		t.updateCompositionState(false)
 	case CommandClear:
-		t.replaceComposition("")
 		t.compCurrent = ""
+		t.updateCompositionState(false)
+	}
+}
+
+func (t *Typer) updateEnabledState(enabled bool) {
+	if t.tray != nil {
+		t.tray.SetEnabled(enabled)
+	}
+}
+
+func (t *Typer) updateCompositionState(active bool) {
+	if t.compositionActive == active {
+		return
+	}
+	t.compositionActive = active
+	if t.tray != nil {
+		t.tray.SetComposing(active)
 	}
 }
 

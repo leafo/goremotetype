@@ -46,6 +46,12 @@ header h1 {
   align-items: center;
   gap: 6px;
   font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.status:active {
+  opacity: 0.75;
 }
 
 .status-dot {

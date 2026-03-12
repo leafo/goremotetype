@@ -2,13 +2,14 @@ package main
 
 import "embed"
 
-//go:embed index.html app.js styles.css
+//go:embed index.html app.js styles.css favicon.svg
 var embeddedFiles embed.FS
 
 var (
 	indexHTML  = mustReadAsset("index.html")
-	appJS     = mustReadAsset("app.js")
-	stylesCSS = mustReadAsset("styles.css")
+	appJS      = mustReadAsset("app.js")
+	faviconSVG = mustReadAsset("favicon.svg")
+	stylesCSS  = mustReadAsset("styles.css")
 )
 
 func mustReadAsset(path string) []byte {

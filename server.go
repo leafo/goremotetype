@@ -31,6 +31,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/assets/app.js", s.handleAppJS)
+	mux.HandleFunc("/assets/favicon.svg", s.handleFaviconSVG)
 	mux.HandleFunc("/assets/styles.css", s.handleStylesCSS)
 	mux.HandleFunc("/ws", s.handleWS)
 	return mux
@@ -61,6 +62,15 @@ func (s *Server) handleStylesCSS(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	_, _ = w.Write(stylesCSS)
+}
+
+func (s *Server) handleFaviconSVG(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	_, _ = w.Write(faviconSVG)
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {

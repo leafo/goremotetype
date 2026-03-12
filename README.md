@@ -38,5 +38,5 @@ goremotetype LAN URL: http://192.168.1.100:8088
 
 ```
 -listen  listen address (default "0.0.0.0:8088")
--tray    show a Zenity notification icon when available; disable with -tray=false
+-tray    show a system tray icon; disable with -tray=false
 ```

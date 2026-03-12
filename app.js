@@ -12,6 +12,7 @@
   var clearLogBtn = document.getElementById('clearLogBtn');
 
   var ws = null;
+  var reconnectTimer = null;
   var reconnectDelay = 800;
   var maxReconnectDelay = 10000;
   var autoScroll = true;
@@ -61,6 +62,11 @@
   // --- WebSocket ---
 
   function connect() {
+    if (reconnectTimer !== null) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+
     var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(proto + '//' + location.host + '/ws');
 
@@ -91,10 +97,34 @@
   }
 
   function scheduleReconnect() {
-    setTimeout(function() {
+    if (reconnectTimer !== null) return;
+
+    reconnectTimer = setTimeout(function() {
+      reconnectTimer = null;
       connect();
     }, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 1.5, maxReconnectDelay);
+  }
+
+  function forceReconnect() {
+    if (reconnectTimer !== null) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+
+    reconnectDelay = 800;
+    setStatus('disconnected');
+
+    if (ws) {
+      var current = ws;
+      ws = null;
+      try {
+        current.onclose = null;
+        current.close();
+      } catch(err) {}
+    }
+
+    connect();
   }
 
   function wsSend(msg) {
@@ -259,6 +289,11 @@
 
   ta.addEventListener('select', function() {
     logEvent('select', 'sel=' + ta.selectionStart + '-' + ta.selectionEnd);
+  });
+
+  statusEl.addEventListener('click', function() {
+    logEvent('status:click', 'force reconnect', true);
+    forceReconnect();
   });
 
   document.addEventListener('selectionchange', function() {

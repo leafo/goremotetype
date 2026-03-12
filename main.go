@@ -17,6 +17,7 @@ import (
 
 func main() {
 	listenAddr := flag.String("listen", "0.0.0.0:8088", "listen address")
+	trayEnabled := flag.Bool("tray", true, "show a system tray icon")
 	flag.Parse()
 
 	if err := InitX11(); err != nil {
@@ -34,6 +35,14 @@ func main() {
 
 	printURLs(*listenAddr)
 
+	var tray *Tray
+	if *trayEnabled {
+		tray = StartTray("goremotetype", trayText(*listenAddr))
+		typer.SetTray(tray)
+		defer tray.Close()
+		log.Printf("tray started")
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
 		err := httpServer.ListenAndServe()
@@ -46,15 +55,26 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	select {
-	case err := <-errCh:
-		if err != nil {
-			log.Fatalf("server error: %v", err)
+	for {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				log.Fatalf("server error: %v", err)
+			}
+			goto shutdown
+		case sig := <-sigCh:
+			log.Printf("received signal %s, shutting down", sig)
+			goto shutdown
+		case enabled := <-trayToggleRequested(tray):
+			typer.SetEnabled(enabled)
+			log.Printf("typing enabled=%t", enabled)
+		case <-trayQuitRequested(tray):
+			log.Printf("tray requested shutdown")
+			goto shutdown
 		}
-	case sig := <-sigCh:
-		log.Printf("received signal %s, shutting down", sig)
 	}
 
+shutdown:
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
@@ -73,6 +93,33 @@ func printURLs(listenAddr string) {
 	for _, ip := range lanIPs(host) {
 		log.Printf("goremotetype LAN URL: http://%s:%s", ip, port)
 	}
+}
+
+func trayText(listenAddr string) string {
+	host, port, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return fmt.Sprintf("goremotetype running on %s", listenAddr)
+	}
+
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		return fmt.Sprintf("goremotetype listening on http://localhost:%s", port)
+	}
+
+	return fmt.Sprintf("goremotetype listening on http://%s:%s", host, port)
+}
+
+func trayQuitRequested(tray *Tray) <-chan struct{} {
+	if tray == nil {
+		return nil
+	}
+	return tray.QuitRequested()
+}
+
+func trayToggleRequested(tray *Tray) <-chan bool {
+	if tray == nil {
+		return nil
+	}
+	return tray.ToggleRequested()
 }
 
 func lanIPs(host string) []string {
