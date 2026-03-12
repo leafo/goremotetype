@@ -38,5 +38,13 @@ goremotetype LAN URL: http://192.168.1.100:8088
 
 ```
 -listen  listen address (default "0.0.0.0:8088")
+-key-delay-ms  delay in milliseconds between injected X11 key presses
 -tray    show a system tray icon; disable with -tray=false
+```
+
+For apps that drop or corrupt very fast synthetic input, try a small server-side
+delay such as:
+
+```
+./goremotetype -key-delay-ms=2
 ```

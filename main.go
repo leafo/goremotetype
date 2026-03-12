@@ -18,12 +18,17 @@ import (
 func main() {
 	listenAddr := flag.String("listen", "0.0.0.0:8088", "listen address")
 	trayEnabled := flag.Bool("tray", true, "show a system tray icon")
+	keyDelayMs := flag.Int("key-delay-ms", 0, "delay in milliseconds between injected X11 key presses")
 	flag.Parse()
 
 	if err := InitX11(); err != nil {
 		log.Fatalf("X11 init failed: %v", err)
 	}
 	defer CloseX11()
+	SetX11KeyDelayMs(*keyDelayMs)
+	if *keyDelayMs > 0 {
+		log.Printf("X11 key delay enabled: %dms", *keyDelayMs)
+	}
 
 	typer := NewTyper()
 	server := NewServer(typer)

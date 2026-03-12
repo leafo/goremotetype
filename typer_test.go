@@ -41,8 +41,7 @@ func TestTyperCommitCompositionReplacesPreview(t *testing.T) {
 
 		want := []string{
 			"text:How is this",
-			"backspace:11",
-			"text:How is this?",
+			"text:?",
 		}
 		if !reflect.DeepEqual(*ops, want) {
 			t.Fatalf("ops mismatch\n got: %#v\nwant: %#v", *ops, want)
@@ -94,9 +93,41 @@ func TestTyperPreservesCommandOrder(t *testing.T) {
 
 		want := []string{
 			"text:How is this",
-			"backspace:11",
-			"text:How is this?",
+			"text:?",
 			"text: Fine.",
+		}
+		if !reflect.DeepEqual(*ops, want) {
+			t.Fatalf("ops mismatch\n got: %#v\nwant: %#v", *ops, want)
+		}
+	})
+}
+
+func TestTyperCompositionUpdateKeepsCommonPrefix(t *testing.T) {
+	withFakeTyperIO(t, func(ops *[]string) {
+		typer := &Typer{enabled: true}
+		typer.execCommand(TypeCommand{Kind: CommandCompositionUpdate, Text: "It seems to work but things are getting a little corrupted"})
+		typer.execCommand(TypeCommand{Kind: CommandCompositionUpdate, Text: "It seems to work but things are getting a little corrupted!"})
+
+		want := []string{
+			"text:It seems to work but things are getting a little corrupted",
+			"text:!",
+		}
+		if !reflect.DeepEqual(*ops, want) {
+			t.Fatalf("ops mismatch\n got: %#v\nwant: %#v", *ops, want)
+		}
+	})
+}
+
+func TestTyperCompositionUpdateRewritesOnlyChangedSuffix(t *testing.T) {
+	withFakeTyperIO(t, func(ops *[]string) {
+		typer := &Typer{enabled: true}
+		typer.execCommand(TypeCommand{Kind: CommandCompositionUpdate, Text: "Okay lets try this"})
+		typer.execCommand(TypeCommand{Kind: CommandCompositionUpdate, Text: "Okay, let's try this again"})
+
+		want := []string{
+			"text:Okay lets try this",
+			"backspace:14",
+			"text:, let's try this again",
 		}
 		if !reflect.DeepEqual(*ops, want) {
 			t.Fatalf("ops mismatch\n got: %#v\nwant: %#v", *ops, want)

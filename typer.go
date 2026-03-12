@@ -9,6 +9,7 @@ package main
 
 static Display *dpy = NULL;
 static int spare_keycode = 0;
+static unsigned int key_delay_ms = 0;
 
 static int x11_init(void) {
 	dpy = XOpenDisplay(NULL);
@@ -35,6 +36,10 @@ static void x11_close(void) {
 	if (dpy) { XCloseDisplay(dpy); dpy = NULL; }
 }
 
+static void x11_set_key_delay(unsigned int delay_ms) {
+	key_delay_ms = delay_ms;
+}
+
 // Type a keysym that already has a keycode in the current keymap.
 // Returns 1 if it handled it, 0 if it needs temporary remapping.
 static int type_keysym_fast(KeySym ks) {
@@ -51,11 +56,11 @@ static int type_keysym_fast(KeySym ks) {
 		KeyCode shift = XKeysymToKeycode(dpy, XK_Shift_L);
 		if (shift) XTestFakeKeyEvent(dpy, shift, True, 0);
 		XTestFakeKeyEvent(dpy, kc, True, 0);
-		XTestFakeKeyEvent(dpy, kc, False, 0);
+		XTestFakeKeyEvent(dpy, kc, False, key_delay_ms);
 		if (shift) XTestFakeKeyEvent(dpy, shift, False, 0);
 	} else {
 		XTestFakeKeyEvent(dpy, kc, True, 0);
-		XTestFakeKeyEvent(dpy, kc, False, 0);
+		XTestFakeKeyEvent(dpy, kc, False, key_delay_ms);
 	}
 	return 1;
 }
@@ -69,7 +74,7 @@ static void type_keysym_remap(KeySym ks) {
 	XSync(dpy, False);
 
 	XTestFakeKeyEvent(dpy, spare_keycode, True, 0);
-	XTestFakeKeyEvent(dpy, spare_keycode, False, 0);
+	XTestFakeKeyEvent(dpy, spare_keycode, False, key_delay_ms);
 	XSync(dpy, False);
 
 	KeySym nosym = NoSymbol;
@@ -102,7 +107,7 @@ static void x11_send_backspaces(int count) {
 	if (kc == 0) return;
 	for (int i = 0; i < count; i++) {
 		XTestFakeKeyEvent(dpy, kc, True, 0);
-		XTestFakeKeyEvent(dpy, kc, False, 0);
+		XTestFakeKeyEvent(dpy, kc, False, key_delay_ms);
 	}
 	XFlush(dpy);
 }
@@ -122,7 +127,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"unicode/utf8"
+	"strings"
 	"unsafe"
 )
 
@@ -191,6 +196,13 @@ func CloseX11() {
 	C.x11_close()
 }
 
+func SetX11KeyDelayMs(delay int) {
+	if delay < 0 {
+		delay = 0
+	}
+	C.x11_set_key_delay(C.uint(delay))
+}
+
 // SendText queues committed text to type.
 func (t *Typer) SendText(text string) {
 	t.cmdCh <- TypeCommand{Kind: CommandText, Text: text}
@@ -232,17 +244,36 @@ func (t *Typer) replaceComposition(text string) {
 		return
 	}
 
-	deleteCount := utf8.RuneCountInString(t.compCurrent)
+	prefixRunes := commonPrefixRuneCount(t.compCurrent, text)
+	currentRunes := []rune(t.compCurrent)
+	nextRunes := []rune(text)
+
+	deleteCount := len(currentRunes) - prefixRunes
 	if deleteCount > 0 {
 		sendBackspacesFn(deleteCount)
 	}
 
-	if len(text) > 0 {
-		typeTextFn(text)
+	if prefixRunes < len(nextRunes) {
+		typeTextFn(string(nextRunes[prefixRunes:]))
 	}
 
 	t.compCurrent = text
 	t.updateCompositionState(text != "")
+}
+
+func commonPrefixRuneCount(a, b string) int {
+	ar := []rune(a)
+	br := []rune(b)
+	limit := len(ar)
+	if len(br) < limit {
+		limit = len(br)
+	}
+
+	count := 0
+	for count < limit && ar[count] == br[count] {
+		count++
+	}
+	return count
 }
 
 func (t *Typer) execCommand(cmd TypeCommand) {
@@ -321,11 +352,11 @@ func logX11Action(color, action, detail string) {
 }
 
 func summarizeTextForLog(text string, maxRunes int) string {
-	runes := []rune(text)
+	runes := []rune(strings.ReplaceAll(text, "\n", "\\n"))
 	if len(runes) > maxRunes {
 		return strconv.Quote(string(runes[:maxRunes]) + "...")
 	}
-	return strconv.Quote(text)
+	return strconv.Quote(string(runes))
 }
 
 func typeText(text string) {
