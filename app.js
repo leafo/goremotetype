@@ -6,6 +6,7 @@
   var eventCountEl = document.getElementById('eventCount');
   var filtersEl = document.getElementById('filters');
   var sendBtn = document.getElementById('sendBtn');
+  var clearReturnBtn = document.getElementById('clearReturnBtn');
   var clearBtn = document.getElementById('clearBtn');
   var shipLogBtn = document.getElementById('shipLogBtn');
   var clearLogBtn = document.getElementById('clearLogBtn');
@@ -21,6 +22,7 @@
   var lastSentLength = 0;
   var isComposing = false;
   var pendingCompositionCommit = false;
+  var pendingClearReturn = false;
 
   // Event logging
   var eventGroups = {
@@ -110,6 +112,31 @@
     sendBtn.disabled = ta.value.length === 0;
   }
 
+  function resetInputState() {
+    ta.value = '';
+    lastSentLength = 0;
+    pendingCompositionCommit = false;
+    logEl.innerHTML = '';
+    logBuffer = [];
+    entryCount = 0;
+    eventCountEl.textContent = '0';
+    wsSend({type: 'clear'});
+    updateActionState();
+  }
+
+  function finishClearReturn() {
+    pendingClearReturn = false;
+    resetInputState();
+    wsSend({type: 'key', key: 'Enter'});
+    ta.focus();
+  }
+
+  function maybeFinishClearReturn() {
+    if (!pendingClearReturn) return;
+    if (isComposing || pendingCompositionCommit) return;
+    finishClearReturn();
+  }
+
   // --- Delta tracking ---
 
   // Sends committed (non-composing) text changes
@@ -143,6 +170,7 @@
     logEvent('ws:send', 'compcommit: "' + truncate(committedText, 60) + '"', true);
     lastSentLength = val.length;
     pendingCompositionCommit = false;
+    maybeFinishClearReturn();
   }
 
   function truncate(s, max) {
@@ -204,6 +232,7 @@
     }
 
     updateActionState();
+    maybeFinishClearReturn();
   });
 
   ['keydown', 'keyup'].forEach(function(evt) {
@@ -255,16 +284,13 @@
 
   // Clear button — resets without sending backspaces
   clearBtn.addEventListener('click', function() {
-    ta.value = '';
-    lastSentLength = 0;
-    pendingCompositionCommit = false;
-    logEl.innerHTML = '';
-    logBuffer = [];
-    entryCount = 0;
-    eventCountEl.textContent = '0';
-    wsSend({type: 'clear'});
-    updateActionState();
+    resetInputState();
     ta.focus();
+  });
+
+  clearReturnBtn.addEventListener('click', function() {
+    pendingClearReturn = true;
+    maybeFinishClearReturn();
   });
 
   clearLogBtn.addEventListener('click', function() {

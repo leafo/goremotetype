@@ -93,6 +93,12 @@ textarea:focus {
   gap: 8px;
 }
 
+.actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .btn {
   background: var(--panel);
   color: var(--ink);
@@ -112,17 +118,15 @@ textarea:focus {
   cursor: not-allowed;
 }
 
-.btn-send {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #081510;
-  font-weight: 600;
-}
-
 .btn-clear {
   background: var(--danger);
   border-color: var(--danger);
   color: #fff;
+}
+
+.btn-clear-alt {
+  border-color: var(--danger);
+  color: #ffb4bf;
 }
 
 .btn-small {
