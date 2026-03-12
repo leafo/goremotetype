@@ -88,6 +88,8 @@ textarea:focus {
 .actions {
   margin-top: 8px;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -103,6 +105,18 @@ textarea:focus {
 
 .btn:active {
   opacity: 0.7;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-send {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #081510;
+  font-weight: 600;
 }
 
 .btn-clear {

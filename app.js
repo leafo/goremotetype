@@ -5,6 +5,7 @@
   var statusText = statusEl.querySelector('.status-text');
   var eventCountEl = document.getElementById('eventCount');
   var filtersEl = document.getElementById('filters');
+  var sendBtn = document.getElementById('sendBtn');
   var clearBtn = document.getElementById('clearBtn');
   var shipLogBtn = document.getElementById('shipLogBtn');
   var clearLogBtn = document.getElementById('clearLogBtn');
@@ -105,6 +106,10 @@
     statusText.textContent = state;
   }
 
+  function updateActionState() {
+    sendBtn.disabled = ta.value.length === 0;
+  }
+
   // --- Delta tracking ---
 
   // Sends committed (non-composing) text changes
@@ -197,6 +202,8 @@
     } else if (!isComposing) {
       syncDelta();
     }
+
+    updateActionState();
   });
 
   ['keydown', 'keyup'].forEach(function(evt) {
@@ -236,13 +243,27 @@
     });
   });
 
+  sendBtn.addEventListener('click', function() {
+    var text = ta.value;
+    if (!text) return;
+
+    wsSend({type: 'text', data: text});
+    logEvent('ws:send', 'sendfull: "' + truncate(text, 60) + '"', true);
+    updateActionState();
+    ta.focus();
+  });
+
   // Clear button — resets without sending backspaces
   clearBtn.addEventListener('click', function() {
     ta.value = '';
     lastSentLength = 0;
     pendingCompositionCommit = false;
+    logEl.innerHTML = '';
+    logBuffer = [];
+    entryCount = 0;
+    eventCountEl.textContent = '0';
     wsSend({type: 'clear'});
-    logEvent('ws:send', 'clear', true);
+    updateActionState();
     ta.focus();
   });
 
@@ -308,5 +329,6 @@
   });
 
   // Start
+  updateActionState();
   connect();
 })();
