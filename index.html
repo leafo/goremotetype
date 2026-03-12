@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>goremotetype</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<header>
+  <h1>goremotetype</h1>
+  <div class="header-right">
+    <span id="status" class="status" data-state="disconnected">
+      <span class="status-dot"></span>
+      <span class="status-text">disconnected</span>
+    </span>
+  </div>
+</header>
+
+<div class="textarea-wrap">
+  <textarea id="input" rows="6" placeholder="Type here..." autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true"></textarea>
+  <div class="actions">
+    <button id="clearBtn" class="btn btn-clear">Clear</button>
+  </div>
+</div>
+
+<details id="debugPanel">
+  <summary>Event Log <span id="eventCount" class="badge">0</span></summary>
+  <div class="log-controls">
+    <div id="filters"></div>
+    <button id="clearLogBtn" class="btn btn-small">Clear Log</button>
+  </div>
+  <div id="log"></div>
+</details>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
