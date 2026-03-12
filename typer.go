@@ -121,31 +121,40 @@ import "C"
 import (
 	"fmt"
 	"log"
-	"sync"
 	"unicode/utf8"
 	"unsafe"
 )
 
-// Typer processes typing commands sequentially, with a composition
-// buffer that supports "latest state wins" to avoid stale updates.
+var (
+	typeTextFn       = typeText
+	sendKeyFn        = sendKey
+	sendBackspacesFn = sendBackspaces
+)
+
 type Typer struct {
-	mu          sync.Mutex
-	compCurrent string // what we've typed for the current composition
-	compTarget  string // latest composition target
-	compPending bool
-	notify      chan struct{}
 	cmdCh       chan TypeCommand
+	compCurrent string
 }
 
 type TypeCommand struct {
+	Kind TypeCommandKind
 	Text string
 	Key  string
 }
 
+type TypeCommandKind int
+
+const (
+	CommandText TypeCommandKind = iota
+	CommandKey
+	CommandCompositionUpdate
+	CommandCompositionCommit
+	CommandClear
+)
+
 func NewTyper() *Typer {
 	t := &Typer{
-		notify: make(chan struct{}, 1),
-		cmdCh:  make(chan TypeCommand, 64),
+		cmdCh: make(chan TypeCommand, 64),
 	}
 	go t.loop()
 	return t
@@ -164,99 +173,67 @@ func CloseX11() {
 
 // SendText queues committed text to type.
 func (t *Typer) SendText(text string) {
-	t.cmdCh <- TypeCommand{Text: text}
+	t.cmdCh <- TypeCommand{Kind: CommandText, Text: text}
 }
 
 // SendKey queues a special key press.
 func (t *Typer) SendKey(key string) {
-	t.cmdCh <- TypeCommand{Key: key}
+	t.cmdCh <- TypeCommand{Kind: CommandKey, Key: key}
 }
 
 // SetComposition updates the in-progress composition target.
 func (t *Typer) SetComposition(s string) {
-	t.mu.Lock()
-	t.compTarget = s
-	t.compPending = true
-	t.mu.Unlock()
-
-	select {
-	case t.notify <- struct{}{}:
-	default:
-	}
+	t.cmdCh <- TypeCommand{Kind: CommandCompositionUpdate, Text: s}
 }
 
-// EndComposition signals composition is done.
-func (t *Typer) EndComposition() {
-	t.mu.Lock()
-	t.compCurrent = ""
-	t.compTarget = ""
-	t.compPending = false
-	t.mu.Unlock()
+// CommitComposition reconciles the current preview with the final committed text.
+func (t *Typer) CommitComposition(text string) {
+	t.cmdCh <- TypeCommand{Kind: CommandCompositionCommit, Text: text}
 }
 
 // Clear resets all state.
 func (t *Typer) Clear() {
-	t.mu.Lock()
-	t.compCurrent = ""
-	t.compTarget = ""
-	t.compPending = false
-	t.mu.Unlock()
+	t.cmdCh <- TypeCommand{Kind: CommandClear}
 }
 
 func (t *Typer) loop() {
 	for {
-		select {
-		case <-t.notify:
-			t.convergeComposition()
-			continue
-		default:
-		}
-
-		select {
-		case <-t.notify:
-			t.convergeComposition()
-		case cmd := <-t.cmdCh:
-			t.execCommand(cmd)
-		}
+		cmd := <-t.cmdCh
+		t.execCommand(cmd)
 	}
 }
 
-func (t *Typer) convergeComposition() {
-	for {
-		t.mu.Lock()
-		if !t.compPending {
-			t.mu.Unlock()
-			return
-		}
-		target := t.compTarget
-		current := t.compCurrent
-		t.compPending = false
-		t.mu.Unlock()
-
-		if target == current {
-			continue
-		}
-
-		deleteCount := utf8.RuneCountInString(current)
-		if deleteCount > 0 {
-			C.x11_send_backspaces(C.int(deleteCount))
-		}
-
-		if len(target) > 0 {
-			typeText(target)
-		}
-
-		t.mu.Lock()
-		t.compCurrent = target
-		t.mu.Unlock()
+func (t *Typer) replaceComposition(text string) {
+	if text == t.compCurrent {
+		return
 	}
+
+	deleteCount := utf8.RuneCountInString(t.compCurrent)
+	if deleteCount > 0 {
+		sendBackspacesFn(deleteCount)
+	}
+
+	if len(text) > 0 {
+		typeTextFn(text)
+	}
+
+	t.compCurrent = text
 }
 
 func (t *Typer) execCommand(cmd TypeCommand) {
-	if cmd.Text != "" {
-		typeText(cmd.Text)
-	} else if cmd.Key != "" {
-		sendKey(cmd.Key)
+	switch cmd.Kind {
+	case CommandText:
+		typeTextFn(cmd.Text)
+	case CommandKey:
+		sendKeyFn(cmd.Key)
+	case CommandCompositionUpdate:
+		t.replaceComposition(cmd.Text)
+	case CommandCompositionCommit:
+		t.replaceComposition(cmd.Text)
+		t.compCurrent = ""
+	case CommandClear:
+		t.replaceComposition("")
+		t.compCurrent = ""
 	}
 }
 
@@ -288,6 +265,13 @@ func typeText(text string) {
 		keysyms[i] = runeToKeysym(r)
 	}
 	C.x11_type_keysyms((*C.ulong)(unsafe.Pointer(&keysyms[0])), C.int(len(keysyms)))
+}
+
+func sendBackspaces(count int) {
+	if count <= 0 {
+		return
+	}
+	C.x11_send_backspaces(C.int(count))
 }
 
 var keyMap = map[string]C.ulong{

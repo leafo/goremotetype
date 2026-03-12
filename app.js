@@ -17,6 +17,7 @@
   // Delta tracking
   var lastSentLength = 0;
   var isComposing = false;
+  var pendingCompositionCommit = false;
 
   // Event logging
   var eventGroups = {
@@ -122,6 +123,21 @@
     }
   }
 
+  function flushCompositionCommit() {
+    if (!pendingCompositionCommit) return;
+
+    var val = ta.value;
+    var committedText = '';
+    if (val.length >= lastSentLength) {
+      committedText = val.substring(lastSentLength);
+    }
+
+    wsSend({type: 'compositioncommit', data: committedText});
+    logEvent('ws:send', 'compcommit: "' + truncate(committedText, 60) + '"', true);
+    lastSentLength = val.length;
+    pendingCompositionCommit = false;
+  }
+
   function truncate(s, max) {
     if (s.length <= max) return s;
     return s.substring(0, max) + '...';
@@ -131,6 +147,7 @@
 
   ta.addEventListener('compositionstart', function(e) {
     isComposing = true;
+    pendingCompositionCommit = false;
     logEvent('compositionstart', 'data="' + (e.data || '') + '"');
   });
 
@@ -143,12 +160,14 @@
 
   ta.addEventListener('compositionend', function(e) {
     isComposing = false;
+    pendingCompositionCommit = true;
     var data = e.data || '';
     logEvent('compositionend', 'data="' + data + '"');
-    wsSend({type: 'compositionend', data: data});
-    // Update lastSentLength to account for the committed composition text
-    lastSentLength = ta.value.length;
     logEvent('ws:send', 'compend: "' + truncate(data, 60) + '"', true);
+
+    // Some browsers update the textarea value after compositionend but before
+    // the final input event. This fallback keeps the commit from getting stuck.
+    setTimeout(flushCompositionCommit, 0);
   });
 
   ta.addEventListener('beforeinput', function(e) {
@@ -166,7 +185,9 @@
     if (e.isComposing) parts.push('composing');
     logEvent('input', parts.join(' | '));
 
-    if (!isComposing) {
+    if (!isComposing && pendingCompositionCommit) {
+      flushCompositionCommit();
+    } else if (!isComposing) {
       syncDelta();
     }
   });
@@ -212,6 +233,7 @@
   clearBtn.addEventListener('click', function() {
     ta.value = '';
     lastSentLength = 0;
+    pendingCompositionCommit = false;
     wsSend({type: 'clear'});
     logEvent('ws:send', 'clear', true);
     ta.focus();

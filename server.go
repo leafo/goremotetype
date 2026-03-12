@@ -103,8 +103,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 		case "compositionupdate":
 			s.typer.SetComposition(msg.Data)
-		case "compositionend":
-			s.typer.EndComposition()
+		case "compositioncommit":
+			s.typer.CommitComposition(msg.Data)
 		case "clear":
 			s.typer.Clear()
 		}
